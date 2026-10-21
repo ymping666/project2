@@ -1,0 +1,42 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><meta name="robots" content="noindex,nofollow"><meta name="viewport" content="width=device-width,initial-scale=1"><title>One Note — batch audio QA</title>
+<style>body{font:14px/1.6 system-ui;max-width:1000px;margin:24px auto;padding:20px;color:#26382f;background:#faf9f4}button{padding:12px 18px;background:#26382f;color:white;border:0;border-radius:5px;cursor:pointer}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#eef2e7;padding:16px;font-size:11px}table{border-collapse:collapse;width:100%}th,td{text-align:left;padding:8px;border-bottom:1px solid #d5ddcf}small{color:#65715f}</style>
+<h1>120 pages. One measured audio engine.</h1><p>Render catalog voicings and comparisons, then measure every distinct sounding MIDI note at 44.1 / 48 kHz. Digital PCM only.</p><button id="run">Run batch audio checks</button><p id="progress" role="status">Not run</p><section id="summary" hidden></section><details><summary>Raw results</summary><pre id="result">Not run</pre></details>
+<script type="module">
+import {createCatalog,buildEntry} from '/assets/catalog.mjs';
+import {createAudioPlayer} from '/assets/audio.mjs';
+const opposite=e=>e.kind==='chord'?({major:'minor',minor:'major',dominant7:'minor7',minor7:'dominant7'})[e.type]:e.type==='major'?'natural-minor':e.type==='natural-minor'?'major':'natural-minor';
+function metrics(data){let peak=0,square=0,nonfinite=0,clipped=0,tail=0;for(let i=0;i<data.length;i++){const sample=data[i];if(!Number.isFinite(sample))nonfinite++;peak=Math.max(peak,Math.abs(sample));square+=sample*sample;if(Math.abs(sample)>=1)clipped++;if(i>data.length-1000)tail=Math.max(tail,Math.abs(sample));}return {peak,rms:Math.sqrt(square/data.length),nonfinite,clipped,tail};}
+async function render(item,rate,reference=false){
+ const duration=item.mode==='scale'?(item.midis.length-1)*.2+.26:.9;
+ const offline=new OfflineAudioContext(1,Math.ceil(Math.max(2.2,duration+.4)*rate),rate);
+ const factory=()=>({state:'running',get currentTime(){return offline.currentTime;},destination:offline.destination,createOscillator:()=>offline.createOscillator(),createGain:()=>offline.createGain()});
+ let id=0;const player=createAudioPlayer({contextFactory:factory,timers:{setTimeout(){return ++id;},clearTimeout(){}}});
+ if(reference)await player.playReference();else await player.play([item]);
+ const data=(await offline.startRendering()).getChannelData(0);player.stop();return {data,integrity:metrics(data)};
+}
+function pitch(data,rate,expected){
+ const crossings=[];let square=0,count=0;
+ for(let i=Math.round(.12*rate);i<Math.round(.65*rate);i++){const a=data[i],b=data[i+1];square+=a*a;count++;if(a<=0&&b>0)crossings.push(i-a/(b-a));}
+ const periods=crossings.length-1,hz=periods*rate/(crossings.at(-1)-crossings[0]);
+ return {expected_hz:expected,measured_hz:hz,cents:1200*Math.log2(hz/expected),periods,first_crossing:crossings[0],last_crossing:crossings.at(-1),rms:Math.sqrt(square/count)};
+}
+document.querySelector('#run').onclick=async()=>{
+ const button=document.querySelector('#run'),out=document.querySelector('#result'),progress=document.querySelector('#progress');button.disabled=true;progress.textContent='Rendering…';const started=performance.now();
+ try{
+  const catalog=createCatalog(),jobs=[],keys=new Map();
+  function add(e,source){const voicings=e.kind==='chord'?e.voicings.map(v=>v.midis):[e.playback];voicings.forEach((midis,index)=>{const key=[e.kind,...midis].join(':'),cover={entry:e.id,source,voicing:index};if(keys.has(key)){keys.get(key).covers.push(cover);return;}const job={id:e.id+'-'+index,mode:e.kind,midis,source,covers:[cover]};keys.set(key,job);jobs.push(job);});}
+  for(const e of catalog){add(e,'catalog');add(buildEntry(e.instrument,e.kind,e.rootPc,opposite(e)),'comparison');}
+  const batches=[];for(const job of jobs){const {integrity}=await render(job,48000);batches.push({id:job.id,mode:job.mode,midis:job.midis,source:job.source,covers:job.covers,...integrity});}
+  const midis=[...new Set(jobs.flatMap(j=>j.midis))].sort((a,b)=>a-b),notes=[];
+  for(const rate of [44100,48000]){
+   for(const midi of midis){const {data,integrity}=await render({id:'note-'+midi,mode:'chord',midis:[midi]},rate);const measured=pitch(data,rate,440*Math.pow(2,(midi-69)/12));notes.push({sample_rate:rate,midi,...measured,...integrity});}
+   const {data,integrity}=await render({id:'reference',mode:'chord',midis:[69]},rate,true);notes.push({sample_rate:rate,midi:69,reference:true,...pitch(data,rate,440),...integrity});
+  }
+  const intact=x=>x.nonfinite===0&&x.clipped===0&&x.peak<1&&x.rms>.0001&&x.tail===0;
+  const pass=batches.every(intact)&&notes.every(x=>intact(x)&&x.periods>=10&&Number.isFinite(x.cents)&&Math.abs(x.cents)<.2);
+  const report={catalog_pages:catalog.length,distinct_graphs:batches.length,distinct_midis:midis.length,graph_sample_rate:48000,note_sample_rates:[44100,48000],method:'Actual production audio.mjs through OfflineAudioContext lifecycle adapter; native oscillator/gain/schedule unchanged. Full mixed graphs: integrity. Individual production voices: rising zero crossings with linear interpolation, first-to-last periods on .12–.65s stable PCM. Expected A440 equal-temperament values computed independently of production converter. No detune compensation.',batches,notes,max_pitch_error_cents:Math.max(...notes.map(n=>Math.abs(n.cents))),max_pcm_peak:Math.max(...batches.map(b=>b.peak),...notes.map(n=>n.peak)),elapsed_ms:performance.now()-started,pass,limits:['Digital PCM, not acoustic speaker/latency or human playability verification.','Graph jobs are deduplicated by mode and actual MIDI sequence, not counted as additional content pages.','Individual-voice pitch probes isolate fundamentals; a mixed chord spectrum is not used to infer sub-cent detuning.']};
+  out.textContent=JSON.stringify(report,null,2);progress.textContent=pass?'Batch checks passed':'Batch checks failed';
+  const section=document.querySelector('#summary');section.hidden=false;section.innerHTML=`<h2>${pass?'Passed':'Failed'}</h2><table><tr><th>Catalog pages</th><td>${catalog.length}</td></tr><tr><th>Distinct full audio graphs · 48 kHz</th><td>${batches.length}</td></tr><tr><th>Distinct MIDI pitches · both sample rates</th><td>${midis.length}</td></tr><tr><th>Maximum pitch estimate error</th><td>${report.max_pitch_error_cents.toFixed(6)} cents</td></tr><tr><th>Clipped / nonfinite samples</th><td>${batches.reduce((n,b)=>n+b.clipped+b.nonfinite,0)+notes.reduce((n,b)=>n+b.clipped+b.nonfinite,0)}</td></tr><tr><th>Local calculation time</th><td>${report.elapsed_ms.toFixed(0)} ms</td></tr></table><p><small>Signal verification only. Timing is this offline QA run, not audible output latency or a performance guarantee.</small></p>`;
+ }catch(error){out.textContent=JSON.stringify({error:String(error)});progress.textContent='Batch check error';}finally{button.disabled=false;}
+};
+</script></html>

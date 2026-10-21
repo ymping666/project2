@@ -1,0 +1,17 @@
+name: Verify music site
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node build.mjs
+      - run: node verify.mjs
+      - run: node scripts/build-pages.mjs
+      - run: node scripts/verify-pages.mjs
+      - run: git diff --exit-code -- docs
