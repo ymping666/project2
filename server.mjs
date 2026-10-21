@@ -12,9 +12,13 @@ http.createServer(async(req,res)=>{
   if(pathname==='/__qa/audio')target=path.join(root,'qa','qa-audio.html');
   else if(pathname==='/__qa/storage')target=path.join(root,'qa','qa-storage.html');
   else if(pathname==='/__qa/responsive')target=path.join(root,'qa','qa-responsive.html');
+  else if(pathname==='/__qa/ui')target=path.join(root,'qa','qa-ui.html');
   else{
-   target=path.resolve(dist,'.'+pathname);
-   if(target!==dist&&!target.startsWith(dist+path.sep)){res.writeHead(403);res.end('Forbidden');return;}
+   const published=pathname==='/project2'||pathname.startsWith('/project2/');
+   const directory=published?path.join(root,'docs'):dist;
+   const localPath=published?(pathname.slice('/project2'.length)||'/'):pathname;
+   target=path.resolve(directory,'.'+localPath);
+   if(target!==directory&&!target.startsWith(directory+path.sep)){res.writeHead(403);res.end('Forbidden');return;}
    if((await stat(target)).isDirectory()){
     if(!pathname.endsWith('/')){res.writeHead(301,{Location:pathname+'/'+url.search});res.end();return;}
     target=path.join(target,'index.html');

@@ -1,6 +1,6 @@
 # One Note scaled site
 
-- This is the local 120-page MVP. Preserve music-prototype and frozen earlier QA records. No paid APIs, remote audio, microphone, account creation or publication is needed for local development.
+- This is the 540-page music site with a GitHub Pages preview. Preserve prior routes and frozen earlier QA records. No paid APIs, remote audio, microphone or account creation is needed for local development. Publishing approved changes to the existing Pages site is authorized by the user's current workflow.
 - Use installed webaudio-guide for relevant audio implementation and webaudio-review for audio review. Native OscillatorNode/GainNode audio is suitable; worklets/MIDI/shared memory are optional, not mandatory features.
 - Keep A4=440 Hz and twelve-tone equal temperament. Musical note spelling, actual string MIDI, complete pitch classes, bass and voicing require their own checks; a Web Audio code review does not establish them.
 - High-G ukulele string order is G4 C4 E4 A4; its first string in the diagram need not be the lowest sounding note. Do not call generated voicings easy, ergonomic, or professionally recommended.

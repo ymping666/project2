@@ -1,0 +1,55 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><meta name="robots" content="noindex,nofollow"><title>540-page browser interaction checks</title>
+<style>body{font:14px/1.6 system-ui;margin:16px;color:#26382f;background:#faf9f4}iframe{display:block;width:750px;height:900px;border:0}button{padding:12px}pre{white-space:pre-wrap;font-size:11px}</style>
+<h1>Pages browser interaction checks</h1><p>Same-origin iframe uses unchanged published HTML/CSS/JS. The test button drives DOM form and practice controls. Audible playback and OfflineAudioContext measurements are separate checks.</p><button id="run">Run interaction checks</button><p id="status" role="status">Not run</p><iframe id="frame" title="Published site under test"></iframe><details><summary>Raw facts</summary><pre id="result">Not run</pre></details>
+<script>
+const frame=document.getElementById('frame'),results=[];
+function check(label,condition,facts){results.push({label,pass:!!condition,facts});if(!condition)throw Error(label);}
+async function open(route){await new Promise((resolve,reject)=>{frame.onload=resolve;frame.onerror=reject;frame.src=route;});await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));return frame.contentDocument;}
+function answerAll(doc){
+ const quiz=doc.getElementById('quiz');
+ const restart=[...quiz.querySelectorAll('button')].find(b=>b.textContent==='Reset practice');
+ if(restart)restart.click();else quiz.querySelector('button').click();
+ for(let n=0;n<4;n++){
+  const index=n===0?0:n===1||n===2?1:doc.querySelector('[data-kind]')?2:0;
+  const isChord=doc.querySelector('h1').textContent.includes('chord on');
+  const correct=n===3?(isChord?2:0):index;
+  quiz.querySelectorAll('.quiz-option')[correct].click();
+  check('question feedback '+(n+1),quiz.querySelector('.feedback')?.textContent.startsWith('Correct.'),{heading:doc.querySelector('h1').textContent,feedback:quiz.querySelector('.feedback')?.textContent});
+  [...quiz.querySelectorAll('button')].find(b=>/Next question|See your result/.test(b.textContent)).click();
+ }
+ check('four-question completion',quiz.textContent.includes('4 / 4'),{text:quiz.textContent});
+}
+document.getElementById('run').onclick=async()=>{
+ const button=document.getElementById('run');button.disabled=true;results.length=0;
+ try{
+  let doc=await open('/project2/');
+  check('540 static cards',doc.querySelectorAll('[data-catalog-entry]').length===540,{cards:doc.querySelectorAll('[data-catalog-entry]').length});
+  const search=doc.getElementById('search');search.value='C# major seventh';search.dispatchEvent(new Event('input',{bubbles:true}));
+  let visible=[...doc.querySelectorAll('[data-catalog-entry]')].filter(x=>!x.hidden);
+  check('enharmonic new-type search',visible.length===3,{matches:visible.map(x=>({text:x.textContent,path:x.getAttribute('href')}))});
+  const reset=doc.querySelector('.filters button[type="reset"]');reset.click();await new Promise(resolve=>setTimeout(resolve,0));
+  const inst=doc.getElementById('instrument-filter'),kind=doc.getElementById('kind-filter');inst.value='ukulele';kind.value='scale';kind.dispatchEvent(new Event('change',{bubbles:true}));
+  check('filtered total and progressive reveal',doc.getElementById('result-count').textContent.startsWith('72 ')&&!doc.getElementById('show-more').hidden,{count:doc.getElementById('result-count').textContent});doc.getElementById('show-more').click();
+  visible=[...doc.querySelectorAll('[data-catalog-entry]')].filter(x=>!x.hidden);
+  check('instrument scale filter',visible.length===72,{visible:visible.length});
+  const root=doc.getElementById('root-filter'),family=doc.getElementById('type-filter');root.value='10';family.value='scale:melodic-minor';family.dispatchEvent(new Event('change',{bubbles:true}));visible=[...doc.querySelectorAll('[data-catalog-entry]')].filter(x=>!x.hidden);check('root and family filters',visible.length===1&&visible[0].getAttribute('href').endsWith('/b-flat/melodic-minor/'),{matches:visible.map(x=>x.getAttribute('href'))});
+  doc.getElementById('note-input').value='C E G B';doc.getElementById('note-finder-form').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}));
+  const links=[...doc.querySelectorAll('#finder-results a')].map(x=>x.getAttribute('href'));
+  check('major7 finder prefixed links',links.length===3&&links.every(x=>x.startsWith('/project2/')&&x.endsWith('/major7/')),{links});
+  const routes=['/project2/guitar/chords/f-sharp/major7/','/project2/ukulele/chords/b-flat/diminished/','/project2/piano/chords/d-flat/sus4/','/project2/guitar/chords/c/augmented/','/project2/ukulele/scales/b-flat/melodic-minor/','/project2/piano/scales/f-sharp/harmonic-minor/'];
+  for(const route of routes){
+   doc=await open(route);
+   check('new study modules loaded',doc.documentElement.classList.contains('js')&&!!doc.getElementById('quiz')?.querySelector('button'),{route,h1:doc.querySelector('h1')?.textContent});
+   const alt=doc.querySelector('[data-side="a"][data-voicing="1"]');if(alt){alt.click();check('alternate voicing selected',alt.getAttribute('aria-pressed')==='true',{route});}
+   check('all playback controls exist',doc.querySelectorAll('[data-play]').length===3&&!!doc.getElementById('reference-audio')&&!!doc.getElementById('stop-audio'),{route});
+   answerAll(doc);
+   doc=await open(route);check('reload preserves result',doc.getElementById('quiz').textContent.includes('4 / 4'),{route});
+  }
+  const corruptKey='one-note:practice:v1:guitar-chord-f-sharp-major7';localStorage.setItem(corruptKey,'{broken');doc=await open(routes[0]);
+  check('corrupt progress fallback',doc.getElementById('quiz').textContent.includes('could not be read'),{warning:doc.getElementById('quiz').textContent});answerAll(doc);
+  doc=await open(routes[4]+'?storage=off');answerAll(doc);check('unavailable storage fallback',doc.getElementById('quiz').textContent.includes('unavailable'),{text:doc.getElementById('quiz').textContent});
+  document.getElementById('status').textContent='Interaction checks passed';
+ }catch(error){results.push({error:String(error),pass:false});document.getElementById('status').textContent='Interaction checks failed';}
+ finally{document.getElementById('result').textContent=JSON.stringify({method:'Browser iframe DOM form/control integration checks against Pages output; no playback success inferred from presence of buttons.',results,pass:results.length>0&&results.every(x=>x.pass)},null,2);button.disabled=false;}
+};
+</script></html>

@@ -7,14 +7,18 @@ document.documentElement.classList.add('js');
 function setupLibrary(){
   const form=document.querySelector('.filters'); if(!form)return;
   form.addEventListener('submit',event=>event.preventDefault());
-  const search=document.getElementById('search'), instrument=document.getElementById('instrument-filter'),kind=document.getElementById('kind-filter'),cards=[...document.querySelectorAll('[data-catalog-entry]')];
-  function filter(){
-    const query=search.value.trim().toLowerCase().replaceAll('♯','#').replaceAll('♭','b');let visible=0;
-    for(const card of cards){const show=(!instrument.value||card.dataset.instrument===instrument.value)&&(!kind.value||card.dataset.kind===kind.value)&&query.split(/\s+/).every(part=>card.dataset.search.includes(part));card.hidden=!show;if(show)visible++;}
-    document.getElementById('result-count').textContent=`${visible} ${visible===1?'study':'studies'} to explore`;
-    document.getElementById('no-results').hidden=visible!==0;
+  const search=document.getElementById('search'),instrument=document.getElementById('instrument-filter'),kind=document.getElementById('kind-filter'),root=document.getElementById('root-filter'),type=document.getElementById('type-filter'),cards=[...document.querySelectorAll('[data-catalog-entry]')],more=document.getElementById('show-more'),progress=document.getElementById('catalog-progress');
+  let limit=60;
+  function filter(reset=true){
+    if(reset)limit=60;
+    const query=search.value.trim().toLowerCase().replaceAll('♯','#').replaceAll('♭','b');let matches=0,shown=0;
+    for(const card of cards){const match=(!instrument.value||card.dataset.instrument===instrument.value)&&(!kind.value||card.dataset.kind===kind.value)&&(!root.value||card.dataset.root===root.value)&&(!type.value||card.dataset.type===type.value)&&query.split(/\s+/).every(part=>card.dataset.search.includes(part));if(match)matches++;const show=match&&shown<limit;card.hidden=!show;if(show)shown++;}
+    document.getElementById('result-count').textContent=`${matches} ${matches===1?'study':'studies'} match your filters`;
+    document.getElementById('no-results').hidden=matches!==0;
+    more.hidden=shown>=matches;more.textContent=`Show next ${Math.min(60,matches-shown)} studies`;
+    progress.textContent=matches?`Showing ${shown} of ${matches}. All studies are available through these filters.`:'';
   }
-  form.addEventListener('input',filter); form.addEventListener('change',filter);form.addEventListener('reset',()=>setTimeout(filter,0));
+  form.addEventListener('input',()=>filter());form.addEventListener('change',()=>filter());form.addEventListener('reset',()=>setTimeout(()=>filter(),0));more.addEventListener('click',()=>{limit+=60;filter(false);});filter();
 }
 
 function setupNoteFinder(){

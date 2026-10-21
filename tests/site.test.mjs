@@ -4,7 +4,7 @@ import {readFile,access,readdir} from 'node:fs/promises';
 import {fileURLToPath} from 'node:url';
 import path from 'node:path';
 import {createCatalog,buildEntry} from '../src/catalog.mjs';
-import {comparisonType,renderDiagram,safeJSON,renderEntry,entryTitle} from '../src/render.mjs';
+import {comparisonType,renderDiagram,safeJSON,renderEntry,entryTitle,qualityExplanation,comparisonExplanation} from '../src/render.mjs';
 
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const dist=path.join(root,'dist');
@@ -12,12 +12,12 @@ const catalog=createCatalog();
 const read=route=>readFile(path.join(dist,route.endsWith('.html')?route:path.join(route,'index.html')),'utf8');
 const pages=await Promise.all(['/',...['guitar','ukulele','piano','about','methodology','privacy'].map(p=>`/${p}/`),...catalog.map(c=>c.path),'/404.html'].map(async route=>({route,html:await read(route)})));
 
-test('120 indexable study routes and exactly 128 generated HTML pages',async()=>{
-  assert.equal(catalog.length,120);assert.equal(new Set(catalog.map(e=>e.path)).size,120);
-  for(const instrument of ['guitar','ukulele','piano']){const entries=catalog.filter(e=>e.instrument===instrument);assert.equal(entries.length,40);assert.equal(entries.filter(e=>e.kind==='chord').length,32);assert.equal(entries.filter(e=>e.kind==='scale').length,8);}
+test('540 study routes and exactly 548 generated HTML pages',async()=>{
+  assert.equal(catalog.length,540);assert.equal(new Set(catalog.map(e=>e.path )).size,540);
+  for(const instrument of ['guitar','ukulele','piano']){const entries=catalog.filter(e=>e.instrument===instrument);assert.equal(entries.length,180);assert.equal(entries.filter(e=>e.kind==='chord').length,108);assert.equal(entries.filter(e=>e.kind==='scale').length,72);}
   async function countHtml(dir){let count=0;for(const file of await readdir(dir,{withFileTypes:true}))count+=file.isDirectory()?await countHtml(path.join(dir,file.name)):Number(file.name.endsWith('.html'));return count;}
-  assert.equal(await countHtml(dist),128);
-  const manifest=JSON.parse(await readFile(path.join(dist,'manifest.json'),'utf8'));assert.equal(manifest.page_count,120);assert.equal(manifest.entries.length,120);assert.deepEqual(manifest.entries.map(e=>e.path),catalog.map(e=>e.path));
+  assert.equal(await countHtml(dist),548);
+  const manifest=JSON.parse(await readFile(path.join(dist,'manifest.json'),'utf8'));assert.equal(manifest.page_count,540);assert.equal(manifest.entries.length,540);assert.deepEqual(manifest.entries.map(e=>e.path),catalog.map(e=>e.path));
 });
 
 test('every page has a distinct title, description, a single h1 and accessible main',()=>{
@@ -36,7 +36,7 @@ test('local build is excluded from crawling and invents no canonical domain',asy
 });
 
 test('every study embeds complete parseable data and useful diagrams without JavaScript',()=>{
-  for(const entry of catalog){const html=pages.find(p=>p.route===entry.path).html;const script=html.match(/<script id="page-data" type="application\/json">([\s\S]*?)<\/script>/)?.[1];assert.ok(script);const data=JSON.parse(script);assert.deepEqual(data.entry,entry);assert.equal(data.catalog.length,120);assert.equal(data.comparison.rootPc,entry.rootPc);assert.equal(data.comparison.instrument,entry.instrument);assert.equal(data.comparison.type,comparisonType(entry));assert.ok(html.includes(entryTitle(entry)));assert.ok(html.includes('role="img"'));for(const note of entry.notes)assert.ok(html.includes(`<strong>${note}</strong>`),`${entry.id} missing ${note}`);if(entry.kind==='chord'){assert.ok(html.includes('data-position="1"'));assert.ok(html.includes('Actual bass: '+entry.voicings[0].bassNote));}else assert.ok(html.includes('all matching positions')||entry.instrument==='piano');}
+  for(const entry of catalog){const html=pages.find(p=>p.route===entry.path).html;const script=html.match(/<script id="page-data" type="application\/json">([\s\S]*?)<\/script>/)?.[1];assert.ok(script);const data=JSON.parse(script);assert.deepEqual(data.entry,entry);assert.equal(data.catalog,undefined,'Detail pages must not embed the full catalog');assert.equal(data.comparison.rootPc,entry.rootPc);assert.equal(data.comparison.instrument,entry.instrument);assert.equal(data.comparison.type,comparisonType(entry));assert.ok(html.includes(entryTitle(entry)));assert.ok(html.includes('role="img"'));for(const note of entry.notes)assert.ok(html.includes(`<strong>${note}</strong>`),`${entry.id} missing ${note}`);if(entry.kind==='chord'){assert.ok(html.includes('data-position="1"'));assert.ok(html.includes('Actual bass: '+entry.voicings[0].bassNote));}else assert.ok(html.includes('all matching positions')||entry.instrument==='piano');}
 });
 
 test('all rendered fretboard dots independently match string tuning, fret and chord or scale pitches',()=>{
@@ -59,9 +59,39 @@ test('safe embedded JSON cannot break out of its script element',()=>{
 });
 
 test('enharmonic roots are searchable and note finder has real pitch-class metadata',()=>{
-  const html=pages[0].html;for(const alias of ['c#','db','d#','eb','f#','gb','g#','ab','a#','bb'])assert.ok(html.includes(alias),alias);assert.ok(html.includes('id="note-finder-form"'));const data=JSON.parse(html.match(/<script id="page-data" type="application\/json">([\s\S]*?)<\/script>/)[1]);assert.equal(data.catalog.length,120);for(const entry of data.catalog)assert.ok(entry.pitchClasses.every(pc=>Number.isInteger(pc)&&pc>=0&&pc<=11));
+  const html=pages[0].html;for(const alias of ['c#','db','d#','eb','f#','gb','g#','ab','a#','bb'])assert.ok(html.includes(alias),alias);assert.ok(html.includes('id="note-finder-form"'));const data=JSON.parse(html.match(/<script id="page-data" type="application\/json">([\s\S]*?)<\/script>/)[1]);assert.equal(data.catalog.length,540);for(const entry of data.catalog)assert.ok(entry.pitchClasses.every(pc=>Number.isInteger(pc)&&pc>=0&&pc<=11));
 });
 
 test('Cb sounding notes use the scientific octave of the written letter',()=>{
   const entry=buildEntry('piano','chord',8,'minor'),comparison=buildEntry('piano','chord',8,'major');const html=renderEntry(entry,comparison,catalog);assert.ok(entry.notes.includes('Cb'));assert.match(html,/Cb[45]/);for(const voicing of entry.voicings)for(const midi of voicing.midis.filter(m=>m%12===11)){const octave=(midi-(-1))/12-1;assert.ok(html.includes(`Cb${octave}`),`Expected Cb${octave} for MIDI ${midi}`);}
+});
+
+
+test('new family explanations distinguish altered fifths, suspensions, sevenths and ascending minor',()=>{
+  const entry=(kind,type)=>buildEntry('piano',kind,0,type);
+  const explain=type=>comparisonExplanation(entry('chord',type),entry('chord',comparisonType(entry('chord',type))));
+  assert.match(explain('major7'),/seventh changes/);assert.doesNotMatch(explain('major7'),/third changes/);
+  assert.match(explain('diminished'),/Both the third and fifth change/);
+  assert.match(explain('augmented'),/fifth changes/);assert.doesNotMatch(explain('augmented'),/third changes/);
+  assert.match(explain('sus2'),/neither contains a third/);assert.match(explain('sus4'),/neither contains a third/);
+  assert.match(qualityExplanation(entry('scale','melodic-minor')),/ascending melodic minor/);
+  assert.match(qualityExplanation(entry('scale','melodic-minor')),/descending form is not played/);
+  for(const c of catalog)assert.ok(qualityExplanation(c)?.length>60,`No substantive formula explanation for ${c.id}`);
+});
+
+test('expanded library retains no-JS links and adds root/family filters with bounded progressive display',()=>{
+  for(const hub of ['','guitar','ukulele','piano']){
+    const html=pages.find(p=>p.route===(hub?`/${hub}/`:'/')).html;
+    const entries=catalog.filter(c=>!hub||c.instrument===hub);
+    assert.match(html,/id="root-filter"/);assert.match(html,/id="type-filter"/);assert.match(html,/id="show-more"[^>]*hidden/);
+    assert.equal((html.match(/data-catalog-entry /g)||[]).length,entries.length);
+    const data=JSON.parse(html.match(/<script id="page-data" type="application\/json">([\s\S]*?)<\/script>/)[1]);
+    assert.equal(data.catalog.length,entries.length);
+    for(const c of entries)assert.ok(html.includes(`href="${c.path}"`));
+  }
+});
+
+test('all expanded study quizzes have three distinct first-question choices',()=>{
+  const distractor='C · D · F# · G#';
+  for(const c of catalog){const comparison=buildEntry(c.instrument,c.kind,c.rootPc,comparisonType(c));const choices=[c.notes.join(' · '),comparison.notes.join(' · '),distractor];assert.equal(new Set(choices).size,3,c.id);assert.ok(c.notes.some(n=>comparison.notes.includes(n)),`No shared-root quiz answer: ${c.id}`);}
 });

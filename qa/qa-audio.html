@@ -1,10 +1,10 @@
 <!doctype html><html lang="en"><meta charset="utf-8"><meta name="robots" content="noindex,nofollow"><meta name="viewport" content="width=device-width,initial-scale=1"><title>One Note — batch audio QA</title>
 <style>body{font:14px/1.6 system-ui;max-width:1000px;margin:24px auto;padding:20px;color:#26382f;background:#faf9f4}button{padding:12px 18px;background:#26382f;color:white;border:0;border-radius:5px;cursor:pointer}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#eef2e7;padding:16px;font-size:11px}table{border-collapse:collapse;width:100%}th,td{text-align:left;padding:8px;border-bottom:1px solid #d5ddcf}small{color:#65715f}</style>
-<h1>120 pages. One measured audio engine.</h1><p>Render catalog voicings and comparisons, then measure every distinct sounding MIDI note at 44.1 / 48 kHz. Digital PCM only.</p><button id="run">Run batch audio checks</button><p id="progress" role="status">Not run</p><section id="summary" hidden></section><details><summary>Raw results</summary><pre id="result">Not run</pre></details>
+<h1>540 pages. One measured audio engine.</h1><p>Render catalog voicings and comparisons, then measure every distinct sounding MIDI note at 44.1 / 48 kHz. Digital PCM only.</p><button id="run">Run batch audio checks</button><p id="progress" role="status">Not run</p><section id="summary" hidden></section><details><summary>Raw results</summary><pre id="result">Not run</pre></details>
 <script type="module">
-import {createCatalog,buildEntry} from '/assets/catalog.mjs';
+import {createCatalog,buildEntry,comparisonType} from '/assets/catalog.mjs';
 import {createAudioPlayer} from '/assets/audio.mjs';
-const opposite=e=>e.kind==='chord'?({major:'minor',minor:'major',dominant7:'minor7',minor7:'dominant7'})[e.type]:e.type==='major'?'natural-minor':e.type==='natural-minor'?'major':'natural-minor';
+const opposite=comparisonType;
 function metrics(data){let peak=0,square=0,nonfinite=0,clipped=0,tail=0;for(let i=0;i<data.length;i++){const sample=data[i];if(!Number.isFinite(sample))nonfinite++;peak=Math.max(peak,Math.abs(sample));square+=sample*sample;if(Math.abs(sample)>=1)clipped++;if(i>data.length-1000)tail=Math.max(tail,Math.abs(sample));}return {peak,rms:Math.sqrt(square/data.length),nonfinite,clipped,tail};}
 async function render(item,rate,reference=false){
  const duration=item.mode==='scale'?(item.midis.length-1)*.2+.26:.9;

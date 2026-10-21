@@ -30,6 +30,7 @@ for(const hub of ['','guitar','ukulele','piano']){
  const html=await readFile(path.join(dist,hub,'index.html'),'utf8');
  for(const entry of entries.filter(e=>!hub||e.instrument===hub))assert(html.includes(`href="${entry.path}"`),`Hub ${hub} misses ${entry.path}`);
 }
-assert(entries.length===120,'Catalog is not120 content pages');
+assert(entries.length===540,'Catalog is not540 content pages');
+assert(totalBytes<35*1024*1024,'Static output exceeds35MiB');
 const report={scope:'Local Node/data/build/link validation; browser UI/PCM are separate.',test_exit:run.status,content_pages:entries.length,per_instrument:Object.fromEntries(['guitar','ukulele','piano'].map(i=>[i,entries.filter(e=>e.instrument===i).length])),html_files:htmlCount,total_files:fileCount,total_bytes:totalBytes,checked_content_links:linkCount,unique_content_titles:titles.size,unique_content_descriptions:descriptions.size,failures,pass:failures.length===0};
 process.stdout.write(JSON.stringify(report,null,2)+'\n');if(failures.length)process.exitCode=1;

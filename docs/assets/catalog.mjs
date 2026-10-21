@@ -13,11 +13,19 @@ const TYPES = {
     minor: [[0,3,7],[1,3,5],['1','b3','5'],'Minor','m'],
     dominant7: [[0,4,7,10],[1,3,5,7],['1','3','5','b7'],'Dominant seventh','7'],
     minor7: [[0,3,7,10],[1,3,5,7],['1','b3','5','b7'],'Minor seventh','m7'],
+    major7: [[0,4,7,11],[1,3,5,7],['1','3','5','7'],'Major seventh','maj7'],
+    diminished: [[0,3,6],[1,3,5],['1','b3','b5'],'Diminished','dim'],
+    augmented: [[0,4,8],[1,3,5],['1','3','#5'],'Augmented','aug'],
+    sus2: [[0,2,7],[1,2,5],['1','2','5'],'Suspended second','sus2'],
+    sus4: [[0,5,7],[1,4,5],['1','4','5'],'Suspended fourth','sus4'],
   },
   scale: {
     major: [[0,2,4,5,7,9,11],[1,2,3,4,5,6,7],['1','2','3','4','5','6','7'],'Major',' major'],
     'natural-minor': [[0,2,3,5,7,8,10],[1,2,3,4,5,6,7],['1','2','b3','4','5','b6','b7'],'Natural minor',' natural minor'],
     'minor-pentatonic': [[0,3,5,7,10],[1,3,4,5,7],['1','b3','4','5','b7'],'Minor pentatonic',' minor pentatonic'],
+    'major-pentatonic': [[0,2,4,7,9],[1,2,3,5,6],['1','2','3','5','6'],'Major pentatonic',' major pentatonic'],
+    'harmonic-minor': [[0,2,3,5,7,8,11],[1,2,3,4,5,6,7],['1','2','b3','4','5','b6','7'],'Harmonic minor',' harmonic minor'],
+    'melodic-minor': [[0,2,3,5,7,9,11],[1,2,3,4,5,6,7],['1','2','b3','4','5','6','7'],'Melodic minor (ascending)',' melodic minor (ascending)'],
   },
 };
 const TUNINGS = { guitar:[40,45,50,55,59,64], ukulele:[67,60,64,69], piano:[] };
@@ -43,8 +51,17 @@ function describe(midis, frets, pcs, notes) {
 function stringVoicings(tuning, pcs, notes) {
   const candidates = [];
   const options = tuning.map(open => [null,...Array.from({length:13},(_,i)=>i).filter(f=>pcs.includes(mod(open+f)))]);
-  function visit(frets) {
-    if (frets.length < tuning.length) { for (const f of options[frets.length]) visit([...frets,f]); return; }
+  // Prune a partial stretch before enumerating its remaining strings. This
+  // retains the same complete candidate set and ordering as the 120-page MVP.
+  function visit(frets, minimum = Infinity, maximum = -Infinity) {
+    if (frets.length < tuning.length) {
+      for (const f of options[frets.length]) {
+        const low = f === null || f === 0 ? minimum : Math.min(minimum, f);
+        const high = f === null || f === 0 ? maximum : Math.max(maximum, f);
+        if (high - low <= 4) visit([...frets,f], low, high);
+      }
+      return;
+    }
     const midis = frets.flatMap((f,i)=>f===null?[]:[tuning[i]+f]);
     if (midis.length < 3 || pcs.some(pc=>!midis.some(m=>mod(m)===pc))) return;
     const stopped = frets.filter(f=>f!==null&&f>0);
@@ -81,9 +98,16 @@ export function buildEntry(instrument, kind, rootPc, type) {
   return {id:`${instrument}-${kind}-${rootSlug}-${type}`,kind,instrument,root,rootPc,rootSlug,type,typeName,symbol:root+suffix,path,notes,intervals:[...intervals],intervalLabels:[...intervalLabels],voicings,playback};
 }
 export function createCatalog() {
-  return Object.keys(TUNINGS).flatMap(instrument=>[
-    ...ROOTS.flatMap((_,pc)=>['major','minor'].map(type=>buildEntry(instrument,'chord',pc,type))),
-    ...[[0,'dominant7'],[7,'dominant7'],[2,'dominant7'],[6,'dominant7'],[9,'minor7'],[2,'minor7'],[4,'minor7'],[6,'minor7']].map(([pc,type])=>buildEntry(instrument,'chord',pc,type)),
-    ...[[0,'major'],[7,'major'],[2,'major'],[5,'major'],[9,'natural-minor'],[4,'natural-minor'],[9,'minor-pentatonic'],[4,'minor-pentatonic']].map(([pc,type])=>buildEntry(instrument,'scale',pc,type)),
-  ]);
+  return Object.keys(TUNINGS).flatMap(instrument=>Object.entries(TYPES).flatMap(([kind,types])=>
+    ROOTS.flatMap((_,pc)=>Object.keys(types).map(type=>buildEntry(instrument,kind,pc,type)))));
+}
+
+/** Related same-root examples; inline comparison states are not extra routes. */
+export function comparisonType(entry) {
+  const comparisons = {
+    chord: {major:'minor',minor:'major',dominant7:'minor7',minor7:'dominant7',major7:'dominant7',diminished:'major',augmented:'major',sus2:'sus4',sus4:'sus2'},
+    scale: {major:'natural-minor','natural-minor':'major','minor-pentatonic':'major-pentatonic','major-pentatonic':'minor-pentatonic','harmonic-minor':'natural-minor','melodic-minor':'natural-minor'},
+  };
+  if (!Object.hasOwn(comparisons,entry?.kind) || !Object.hasOwn(comparisons[entry.kind],entry?.type)) throw new RangeError('Unknown comparison kind or type');
+  return comparisons[entry.kind][entry.type];
 }
