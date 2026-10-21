@@ -1,6 +1,6 @@
 One Note
 
-直接打开：https://ymping666.github.io/project2/
+GitHub Pages 尚待启用。启用后地址：https://ymping666.github.io/project2/
 
 本地运行：需要 Node.js 22 或更新版本。Windows 双击 start-site.cmd，保留终端窗口，再打开 http://127.0.0.1:4176/ 。Ctrl+C 停止。
 

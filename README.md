@@ -1,6 +1,8 @@
 # One Note
 
-**直接体验：[打开音乐学习网站](https://ymping666.github.io/project2/)**
+**源码与 120 页静态网站已上传。GitHub Pages 尚待启用。**
+
+启用后体验地址：https://ymping666.github.io/project2/
 
 120 个英文音乐学习页面：标准调弦吉他、高 G 尤克里里和钢琴各 40 页，涵盖 32 个和弦和 8 个音阶。
 
@@ -25,7 +27,7 @@ node server.mjs
 
 ## GitHub Pages
 
-网站由 `main` 分支的 `/docs` 发布；仓库 Settings → Pages 中选择该来源。
+发布文件已准备在 `main` 分支的 `/docs`；仓库 Settings → Pages 中选择该来源后即可上线。
 
 ```sh
 node scripts/build-pages.mjs
